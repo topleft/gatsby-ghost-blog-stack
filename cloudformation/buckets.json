@@ -1,0 +1,272 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "ProjectName": {
+      "Type": "String"
+    },
+    "env": {
+      "Type": "String",
+      "Default": "dev"
+    }
+  },
+  "Resources": {
+    "LambdaS3Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "Private",
+        "BucketName": {
+          "Fn::Sub": "${ProjectName}-build-fn-${env}"
+        }
+      }
+    },
+    "ContentS3Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "PublicRead",
+        "BucketName": {
+          "Fn::Sub": "${ProjectName}-content-${env}"
+        }
+      },
+      "DeletionPolicy": "Retain"
+    },
+    "StaticSiteS3Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "${ProjectName}-site-${env}"
+        },
+        "AccessControl": "PublicRead",
+        "WebsiteConfiguration": {
+          "IndexDocument": "index.html"
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      }
+    },
+    "SiteS3BucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "StaticSiteS3Bucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Sid": "PublicReadForGetBucketObjects",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:aws:s3:::",
+                  {
+                    "Ref": "ProjectName"
+                  },
+                  "-site-",
+                  {
+                    "Ref": "env"
+                  },
+                  "/*"
+                ]
+              ]
+            }
+          }]
+        }
+      }
+    },
+    "SiteDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Origins": [{
+            "DomainName": {
+              "Fn::GetAtt": ["StaticSiteS3Bucket", "DomainName"]
+            },
+            "Id": {
+              "Ref": "StaticSiteS3Bucket"
+            },
+            "S3OriginConfig": {
+              "OriginAccessIdentity": ""
+            }
+          }],
+          "DefaultRootObject": "index.html",
+          "Enabled": true,
+          "CustomErrorResponses": [{
+              "ErrorCode": 403,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html"
+            },
+            {
+              "ErrorCode": 404,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html"
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "MinTTL": 86400,
+            "MaxTTL": 2592000,
+            "Compress": true,
+            "ForwardedValues": {
+              "QueryString": true
+            },
+            "TargetOriginId": {
+              "Ref": "StaticSiteS3Bucket"
+            },
+            "ViewerProtocolPolicy": "redirect-to-https"
+          }
+        },
+        "Tags": [{
+          "Key": "Name",
+          "Value": {
+            "Fn::Sub": "${ProjectName}-site-${env}"
+          }
+        }]
+      }
+    },
+    "ContentDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Origins": [{
+            "DomainName": {
+              "Fn::GetAtt": ["ContentS3Bucket", "DomainName"]
+            },
+            "Id": {
+              "Ref": "ContentS3Bucket"
+            },
+            "S3OriginConfig": {
+              "OriginAccessIdentity": ""
+            }
+          }],
+          "Enabled": true,
+          "DefaultCacheBehavior": {
+            "MinTTL": 86400,
+            "MaxTTL": 2592000,
+            "Compress": true,
+            "ForwardedValues": {
+              "QueryString": true
+            },
+            "TargetOriginId": {
+              "Ref": "ContentS3Bucket"
+            },
+            "ViewerProtocolPolicy": "redirect-to-https"
+          }
+        },
+        "Tags": [{
+          "Key": "Name",
+          "Value": {
+            "Fn::Sub": "${ProjectName}-content-${env}"
+          }
+        }]
+      }
+    }
+  },
+  "Outputs": {
+    "ContentS3BucketName": {
+      "Description": "Name of the Amazon S3 bucket for Content",
+      "Value": {
+        "Ref": "ContentS3Bucket"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-ContentS3BucketName"
+        }
+      }
+    },
+    "ContentS3BucketArn": {
+      "Description": "Arn of the Amazon S3 bucket for Content",
+      "Value": {
+        "Fn::GetAtt": ["ContentS3Bucket", "Arn"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-ContentS3BucketArn"
+        }
+      }
+    },
+    "StaticSiteS3BucketName": {
+      "Description": "Name of the Amazon S3 bucket for StaticSite",
+      "Value": {
+        "Ref": "StaticSiteS3Bucket"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-StaticSiteS3BucketName"
+        }
+      }
+    },
+    "StaticSiteS3BucketArn": {
+      "Description": "Arn of the Amazon S3 bucket for StaticSite",
+      "Value": {
+        "Fn::GetAtt": ["StaticSiteS3Bucket", "Arn"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-StaticSiteS3BucketArn"
+        }
+      }
+    },
+    "SiteDistributionId": {
+      "Description": "CloudFront Distribution Id for StaticSite",
+      "Value": {
+        "Ref": "SiteDistribution"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-StaticSiteDistributionId"
+        }
+      }
+    },
+    "WebsiteURL": {
+      "Value": {
+        "Fn::GetAtt": [
+          "StaticSiteS3Bucket",
+          "WebsiteURL"
+        ]
+      },
+      "Description": "URL for website hosted on S3"
+    },
+    "WebsiteSecureURL": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Fn::GetAtt": [
+                "StaticSiteS3Bucket",
+                "DomainName"
+              ]
+            }
+          ]
+        ]
+      },
+      "Description": "SSL URL for website hosted on S3"
+    },
+    "LambdaS3BucketName": {
+      "Description": "Name of the Amazon S3 bucket for Lambda",
+      "Value": {
+        "Ref": "LambdaS3Bucket"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-LambdaS3BucketName"
+        }
+      }
+    },
+    "LambdaS3BucketArn": {
+      "Description": "Arn of the Amazon S3 bucket for Lambda",
+      "Value": {
+        "Fn::GetAtt": ["LambdaS3Bucket", "Arn"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-LambdaS3BucketArn"
+        }
+      }
+    }
+  }
+}

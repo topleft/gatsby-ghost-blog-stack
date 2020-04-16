@@ -1,0 +1,299 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "ProjectName": {
+      "Type": "String"
+    },
+    "RolesStack": {
+      "Type": "String"
+    },
+    "BucketsStack": {
+      "Type": "String"
+    },
+    "ServiceStack": {
+      "Type": "String"
+    },
+    "GithubRepoUrl": {
+      "Type": "String"
+    },
+    "GithubToken": {
+      "Type": "String"
+    },
+    "HandlerCodeS3Key": {
+      "Type": "String",
+      "Default": "function.zip"
+    },
+    "HandlerFunctionName": {
+      "Type": "String",
+      "Default": "index.handler"
+    },
+    "env": {
+      "Type": "String",
+      "Default": "dev"
+    }
+  },
+  "Resources": {
+    "BuildHandler": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${ProjectName}-build-fn-${env}"
+        },
+        "Handler": {
+          "Ref": "HandlerFunctionName"
+        },
+        "Role": {
+          "Fn::ImportValue": {
+            "Fn::Sub": "${RolesStack}-FnRoleArn"
+          }
+        },
+        "Code": {
+          "S3Bucket": {
+            "Fn::ImportValue": {
+              "Fn::Sub": "${BucketsStack}-LambdaS3BucketName"
+            }
+          },
+          "S3Key": {
+            "Ref": "HandlerCodeS3Key"
+          }
+        },
+        "Runtime": "nodejs10.x",
+        "Timeout": 60,
+        "Environment": {
+          "Variables": {
+            "CODEBUILD_PROJECT_NAME": { "Ref": "GatsbySiteCodeBuild" }
+          }
+        }
+      }
+    },
+    "BuildApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${ProjectName}-build-api-${env}"
+        },
+        "Description": "API used for building a gatsby blog frontend",
+        "FailOnWarnings": true,
+        "Policy": {
+          "Version": "2012-10-17",
+          "Statement": [{
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": {
+                "Fn::Join": ["", ["execute-api:/", "*"]]
+              }
+            },
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "execute-api:Invoke",
+              "Resource": {
+                "Fn::Join": ["", ["execute-api:/", "*"]]
+              },
+              "Condition": {
+                "NotIpAddress": {
+                  "aws:SourceIp": [{
+                    "Fn::ImportValue": {
+                      "Fn::Sub": "${ServiceStack}-PublicIpAddress"
+                    }
+                  }]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BuildResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "BuildApi"
+        },
+        "ParentId": {
+          "Fn::GetAtt": [
+            "BuildApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "build"
+      }
+    },
+    "BuildMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": ["BuildApi"],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "BuildApi"
+        },
+        "ResourceId": {
+          "Ref": "BuildResource"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Credentials": {
+            "Fn::ImportValue": {
+              "Fn::Sub": "${RolesStack}-ApiGatewayRoleArn"
+            }
+          },
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": ["",
+              [
+                "arn:aws:apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": ["BuildHandler", "Arn"]
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "Deployment": {
+      "DependsOn": ["BuildApi", "BuildMethod"],
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "BuildApi"
+        }
+      }
+    },
+    "Stage": {
+      "DependsOn": ["BuildApi", "Deployment"],
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "StageName": {
+          "Ref": "env"
+        },
+        "RestApiId": {
+          "Ref": "BuildApi"
+        },
+        "DeploymentId": {
+          "Ref": "Deployment"
+        }
+      }
+    },
+    "BuildSecrets": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${ProjectName}-build-secrets-${env}"
+        },
+        "SecretString": {
+          "Fn::Join": [
+            "",
+            [
+              "{",
+              "\"GithubToken\": ",
+              {"Fn::Sub": "\"${GithubToken}\","},
+              "\"AwsSecretAccessKey\": \"",
+              {"Fn::ImportValue": {
+                  "Fn::Sub": "${RolesStack}-ContentUserSecretKey"
+                }
+              },
+              "\"}"
+            ]
+          ]
+        }
+      }
+    },
+    "SourceCredential": {
+      "Type" : "AWS::CodeBuild::SourceCredential",
+      "Properties" : {
+          "AuthType" : "PERSONAL_ACCESS_TOKEN",
+          "ServerType" : "GITHUB",
+          "Token" : {"Ref": "GithubToken"}
+        }
+    },
+    "GatsbySiteCodeBuild": {
+      "DependsOn": "BuildSecrets",
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${ProjectName}-build-${env}"
+        },
+        "ServiceRole": {
+          "Fn::ImportValue": {
+            "Fn::Sub": "${RolesStack}-BuildRoleArn"
+          }
+        },
+        "Artifacts": {
+          "Type": "no_artifacts"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:2.0",
+          "EnvironmentVariables": [
+            {
+              "Name": "SITE_S3_BUCKET",
+              "Value": {
+                "Fn::ImportValue": {
+                  "Fn::Sub": "${BucketsStack}-StaticSiteS3BucketName"
+                }
+              }
+            },
+            {
+              "Name": "CLOUDFRONT_DISTRIBUTION_ID",
+              "Value": {
+                "Fn::ImportValue": {
+                  "Fn::Sub": "${BucketsStack}-StaticSiteDistributionId"
+                }
+              }
+            },
+            {
+              "Name": "AWS_ACCESS_KEY_ID",
+              "Value": {
+                "Fn::ImportValue": {
+                  "Fn::Sub": "${RolesStack}-ContentUserAccessKey"
+                }
+              }
+            },
+            {
+              "Name": "AWS_SECRET_ACCESS_KEY",
+              "Value": {
+                "Fn::Sub": "${ProjectName}-build-secrets-${env}:AwsSecretAccessKey"
+              },
+              "Type": "SECRETS_MANAGER"
+            }
+          ]
+        },
+        "Source": {
+          "Auth": {
+            "Type": "OAUTH",
+            "Resource": {"Ref": "SourceCredential"}
+          },
+          "Location": {
+            "Ref": "GithubRepoUrl"
+          },
+          "Type": "GITHUB"
+        },
+        "Triggers": {
+          "Webhook": true,
+          "FilterGroups": [
+            [
+              {
+                "Type": "EVENT",
+                "Pattern": "PULL_REQUEST_MERGED"
+              },
+              {
+                "Type": "BASE_REF",
+                "Pattern": "refs/heads/master"
+              }
+            ]
+          ]
+        },
+        "TimeoutInMinutes": 10
+      }
+    }
+  }
+}

@@ -1,0 +1,387 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "ProjectName": {
+      "Type": "String"
+    },
+    "BucketsStack": {
+      "Type": "String"
+    },
+    "ApiId": {
+      "Type": "String",
+      "Default": "*"
+    },
+    "LambdaResources": {
+      "Type": "String",
+      "Default": "*"
+    },
+    "env": {
+      "Type": "String",
+      "Default": "dev"
+    }
+  },
+  "Resources": {
+    "FnRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": "${ProjectName}-fn-role-${env}"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {
+              "Service": ["lambda.amazonaws.com"]
+            },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [{
+          "PolicyName": "AWSLambdaBasicExecutionRole",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": "*"
+            }]
+          }
+        },
+        {
+          "PolicyName": "CodebuildStart",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "codebuild:StartBuild"
+              ],
+              "Resource": "*"
+            }]
+          }
+        }
+      ]
+    }
+    },
+    "BuildRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": "${ProjectName}-build-role-${env}"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {
+              "Service": ["codebuild.amazonaws.com"]
+            },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [{
+            "PolicyName": "LogCreation",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": "*"
+              }]
+            }
+          }, {
+            "PolicyName": "SiteS3ReadWrite",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "s3:PutObject",
+                  "s3:GetObject",
+                  "s3:PutObjectVersionAcl",
+                  "s3:DeleteObject",
+                  "s3:PutObjectAcl"
+                ],
+                "Resource": [{
+                    "Fn::Join": [
+                      "",
+                      [{
+                        "Fn::ImportValue": {
+                          "Fn::Sub": "${BucketsStack}-StaticSiteS3BucketArn"
+                        }
+                      }]
+                    ]
+                  },
+                  {
+                    "Fn::Join": [
+                      "",
+                      [{
+                          "Fn::ImportValue": {
+                            "Fn::Sub": "${BucketsStack}-StaticSiteS3BucketArn"
+                          }
+                        },
+                        "/*"
+                      ]
+                    ]
+                  },
+                  {
+                    "Fn::Join": [
+                      "",
+                      [{
+                        "Fn::ImportValue": {
+                          "Fn::Sub": "${BucketsStack}-LambdaS3BucketArn"
+                        }
+                      }]
+                    ]
+                  },
+                  {
+                    "Fn::Join": [
+                      "",
+                      [{
+                          "Fn::ImportValue": {
+                            "Fn::Sub": "${BucketsStack}-LambdaS3BucketArn"
+                          }
+                        },
+                        "/*"
+                      ]
+                    ]
+                  }
+                ]
+              }]
+            }
+          },
+          {
+            "PolicyName": "CloudFrontInvalidate",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "cloudfront:CreateInvalidation",
+                  "cloudfront:GetInvalidation"
+                ],
+                "Resource": "*"
+              }]
+            }
+          },
+          {
+            "PolicyName": "SecretsManagerGet",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "secretsmanager:GetSecretValue"
+                ],
+                "Resource": "*"
+              }]
+            }
+          }
+        ]
+      }
+    },
+    "ContentUser": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "Policies": [{
+          "PolicyName": "CloudFrontInvalidate",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "cloudfront:CreateInvalidation",
+                "cloudfront:GetInvalidation"
+              ],
+              "Resource": "*"
+            }]
+          }
+        },
+        {
+          "PolicyName": "S3ReadWrite",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket",
+                "s3:DeleteObject",
+                "s3:GetBucketLocation",
+                "s3:PutBucketWebsite",
+                "s3:PutObjectVersionAcl",
+                "s3:PutObjectAcl"
+              ],
+              "Resource": [{
+                  "Fn::Join": [
+                    "",
+                    [{
+                      "Fn::ImportValue": {
+                        "Fn::Sub": "${BucketsStack}-ContentS3BucketArn"
+                      }
+                    }]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [{
+                        "Fn::ImportValue": {
+                          "Fn::Sub": "${BucketsStack}-ContentS3BucketArn"
+                        }
+                      },
+                      "/*"
+                    ]
+                  ]
+                }, {
+                  "Fn::Join": [
+                    "",
+                    [{
+                      "Fn::ImportValue": {
+                        "Fn::Sub": "${BucketsStack}-StaticSiteS3BucketArn"
+                      }
+                    }]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [{
+                        "Fn::ImportValue": {
+                          "Fn::Sub": "${BucketsStack}-StaticSiteS3BucketArn"
+                        }
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            }]
+          }
+        }]
+      }
+    },
+    "ContentUserAccessKey": {
+      "Type": "AWS::IAM::AccessKey",
+      "Properties": {
+        "UserName": {
+          "Ref": "ContentUser"
+        }
+      }
+    },
+    "ApiGatewayRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "ApiGatewayRole",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {
+              "Service": ["apigateway.amazonaws.com"]
+            },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Policies": [{
+            "PolicyName": "AWSApiGateWay",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": "lambda:InvokeFunction",
+                "Resource": {
+                  "Ref": "LambdaResources"
+                }
+              }]
+            }
+          },
+          {
+            "PolicyName": "ApiGatewayFullAccess",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "apigateway:*"
+                ],
+                "Resource": [{
+                    "Fn::Sub": "arn:aws:apigateway:us-east-1::/restapis/${ApiId}/stages"
+                  },
+                  {
+                    "Fn::Sub": "arn:aws:apigateway:us-east-1::/restapis/${ApiId}/stages/*"
+                  }
+                ]
+              }]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BuildRoleArn": {
+      "Value": {
+        "Ref": "BuildRole"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-BuildRoleArn"
+        }
+      }
+    },
+    "FnRoleArn": {
+      "Value": {
+        "Fn::GetAtt": ["FnRole", "Arn"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-FnRoleArn"
+        }
+      }
+    },
+    "ApiGatewayRole": {
+      "Description": "Apigateway Role Arn: full apigateway and invoke lambda access",
+      "Value": {
+        "Fn::GetAtt": ["ApiGatewayRole", "Arn"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-ApiGatewayRoleArn"
+        }
+      }
+    },
+    "ContentUserAccessKey": {
+      "Value": {
+        "Ref": "ContentUserAccessKey"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-ContentUserAccessKey"
+        }
+      }
+    },
+    "ContentUserSecretKey": {
+      "Value": {
+        "Fn::GetAtt": ["ContentUserAccessKey", "SecretAccessKey"]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-ContentUserSecretKey"
+        }
+      }
+    }
+  }
+}

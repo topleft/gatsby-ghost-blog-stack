@@ -1,0 +1,10 @@
+{
+  "development": {
+    "apiUrl": "update",
+    "contentApiKey": "update"
+  },
+  "production": {
+    "apiUrl": "update",
+    "contentApiKey": "update"
+  }
+}

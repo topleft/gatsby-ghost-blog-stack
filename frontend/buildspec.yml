@@ -1,0 +1,25 @@
+version: 0.2
+phases:
+    install:
+        runtime-versions:
+            nodejs: 10
+        commands:
+            - 'cd frontend'
+            - 'npm ci --production'
+    build:
+        commands:
+            - 'cd frontend'
+            - 'npm run build'
+    post_build:
+        commands:
+            - 'cd frontend'
+            - 'npm run deploy'
+artifacts:
+    base-directory: frontend/public
+    files:
+        - '**/*'
+    discard-paths: no
+cache:
+    paths:
+        - 'frontend/.cache/*'
+        - 'frontend/public/*'
