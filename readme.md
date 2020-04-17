@@ -10,7 +10,8 @@ This project creates the infrastructure of an end to end solution for a self hos
 
 
 ## Architecture
-![diagram](./gatsby_ghost_aws_diagram.png)
+<img src='./gatsby_ghost_aws_diagram.png' height=auto width=500/>
+
 
 ## Setup
 
