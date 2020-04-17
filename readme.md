@@ -6,7 +6,9 @@ This project creates the infrastructure of an end to end solution for a self hos
 - CMS - [Ghost](https://ghost.org/docs/setup/)
 - Hosting - AWS [EC2](https://aws.amazon.com/ec2/), [S3](https://aws.amazon.com/s3/) and [Cloudfront](https://aws.amazon.com/cloudfront/)
 - CI/CD - AWS [Codebuild](https://aws.amazon.com/codebuild/) and [Lambda](https://aws.amazon.com/lambda/)
-- Infrastructure as Code -[AWS [Cloudformation](https://aws.amazon.com/cloudformation/) and [Secrets Manager](https://aws.amazon.com/secrets-manager/)
+- Infrastructure as Code - AWS [Cloudformation](https://aws.amazon.com/cloudformation/) and [Secrets Manager](https://aws.amazon.com/secrets-manager/)
+
+![diagram](./gatsby_ghost_aws_diagram.html)
 
 ## Setup
 
