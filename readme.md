@@ -8,7 +8,9 @@ This project creates the infrastructure of an end to end solution for a self hos
 - CI/CD - AWS [Codebuild](https://aws.amazon.com/codebuild/) and [Lambda](https://aws.amazon.com/lambda/)
 - Infrastructure as Code - AWS [Cloudformation](https://aws.amazon.com/cloudformation/) and [Secrets Manager](https://aws.amazon.com/secrets-manager/)
 
-![diagram](./gatsby_ghost_aws_diagram.html)
+
+## Architecture
+![diagram](./gatsby_ghost_aws_diagram.png)
 
 ## Setup
 
