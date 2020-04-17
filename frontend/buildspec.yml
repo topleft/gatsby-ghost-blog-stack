@@ -8,11 +8,9 @@ phases:
             - 'npm ci --production'
     build:
         commands:
-            - 'cd frontend'
             - 'npm run build'
     post_build:
         commands:
-            - 'cd frontend'
             - 'npm run deploy'
 artifacts:
     base-directory: frontend/public

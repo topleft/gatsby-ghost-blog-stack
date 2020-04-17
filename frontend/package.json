@@ -30,7 +30,7 @@
     "lint": "eslint . --ext .js --cache",
     "test": "echo \"Error: no test specified\" && exit 1",
     "create-invalidation": "aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths \"/*\"",
-    "upload-to-s3": "gatsby-plugin-s3 deploy",
+    "upload-to-s3": "gatsby-plugin-s3 deploy --yes",
     "deploy": "npm run upload-to-s3 && npm run create-invalidation"
   },
   "devDependencies": {
