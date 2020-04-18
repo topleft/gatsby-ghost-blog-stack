@@ -110,3 +110,10 @@ deploy-function:
 
 start-build:
 	aws codebuild start-build --project-name ${PROJECT_NAME}-build-${ENV} --profile ${AWS_PROFILE}
+
+get-site-distribution-id:
+	aws cloudfront list-distributions --profile personal | jq '.DistributionList.Items[] | select(.Origins.Items[].Id =="${PROJECT_NAME}-site-${ENV}") | .Id'
+
+get-rest-api-id:
+	aws apigateway get-rest-apis --profile personal | jq '.items[] | select(.name == "${PROJECT_NAME}-build-api-${ENV}").id'
+
