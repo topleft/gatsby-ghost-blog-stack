@@ -40,7 +40,7 @@ Run these commands locally to get the AWS resources deployed and configured:
 1. `make create-service`
 1. `make create-build`
 
-* If you have used codebuild with Github before, you  will likely get an error about the `SourceCredential` already being defined for type `GITHUB`. Simply remove the `SourceCredential` and the `Ref` to it in the _cloudformation/build.json_, delete the failed stack in Cloudformation via the AWS console, and locally run `make create-build` again.
+* If you have used codebuild with Github before, you  will likely get an error about the `SourceCredential` already being defined for type `GITHUB`. To fix, open the _cloudformation/build.json_, remove the `SourceCredential` and the `{Ref: SourceCredential}`, delete the failed stack in Cloudformation via the AWS console, and locally run `make create-build` again.
 
 ### Ghost
 
@@ -56,9 +56,9 @@ ssh -i "~/path/to/file.pem" ubuntu@<EC2 Public DNS Address>
 
 Now follow these instructions to install  and configure Ghost: https://ghost.org/docs/install/ubuntu/
 
-#### S3 Setup
+#### S3 Setup for Content
 
-As well, install the S3 ghost plugin and configure it: https://github.com/colinmeinke/ghost-storage-adapter-s3. You will need the AWS access keys for the Content User (found in the IAM section of  the AWS console). As well you need the Content bucket name, "${ProjectName}-content-${env}", and the cloudfront url to add as the assetHost. This  config is to be added to the configuration json file in the _/var/www/ghost/_:
+Also on the EC2 instance within the `/var/www/ghost/` directory, install the S3 ghost plugin and configure it: https://github.com/colinmeinke/ghost-storage-adapter-s3. You will need the AWS access keys for the Content User (found in the IAM section of the AWS console). As well you need the Content bucket name, "${ProjectName}-content-${env}", and the cloudfront url to add as the assetHost. This config is to be added to the configuration json file in the _/var/www/ghost/_:
 
 ```
 "storage": {
@@ -83,14 +83,15 @@ Back in  the Ghost admin UI  in  the  "Build" integration that you just created,
 
 ### Codebuild setup
 
-In the AWS console navigate to the recently created Codebuild project and ensure that your frontend github repo is successfully linked. To verify, navigate to  of the Codebuild project, fond `Edit` in the top right area of the screen, select `Source` from the dropdown and ensure the Source data includes this sentence, "Connection status: You are connected to GitHub using a personal access token".
+In the AWS console navigate to the recently created Codebuild project and ensure that your frontend github repo is successfully linked. To verify, navigate to the Codebuild project, find `Edit` in the top right area of the screen, select `Source` from the dropdown and ensure the Source data includes this sentence
+> "Connection status: You are connected to GitHub using a personal access token".
 
 Now locally, kick of a new build:
 ```sh
 $ make start-build
 ```
 
-Navigate back to the Codebuild UI and confirm that a new build is in progress a new build is in progress. If successful, your frontend will be added to the Site s3 bucket and available at the Cloudfront endpoint.
+Navigate back to the Codebuild UI and confirm that a new build is in progress. If successful, your frontend will be added to the Site S3 bucket and available at the Cloudfront endpoint.
 
 > Remember: merging to master or saving content on the Ghost admin UI will also kick off a build.
 

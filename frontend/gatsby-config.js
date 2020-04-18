@@ -55,7 +55,7 @@ module.exports = {
                 name: `pages`,
             },
         },
-        // Setup for optimised images.
+        // Setup for optimized images.
         // See https://www.gatsbyjs.org/packages/gatsby-image/
         {
             resolve: `gatsby-source-filesystem`,
